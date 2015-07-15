@@ -38,6 +38,10 @@
 
 #include "Implicit.hh"
 
+// *** DEBUG ***
+#include <iostream>
+bool flag_debug2(false);
+
 //== NAMESPACES ===============================================================
 
 namespace IsoEx {
@@ -89,11 +93,34 @@ public:
     ok1 = implicit1_.directed_distance(_p0, _p1, p1, n1, d1);
     ok2 = implicit2_.directed_distance(_p0, _p1, p2, n2, d2);
 
+    // *** DEBUG ***
+    if (flag_debug2) {
+      using namespace std;
+      cerr << "--- Point: " << _p0;
+      cerr << "  Direction: " << _p1-_p0 << endl;
+      if (ok1) {
+        cerr << "  p1: " << p1 << "  n1: " << n1 << "  d1: " << d1;
+      }
+      cerr << "  ok1: " << int(ok1) << endl;
+      if (ok2) {
+        cerr << "  p2: " << p2 << "  n2: " << n2 << "  d2: " << d2;
+      }
+      cerr << "  ok2: " << int(ok2) << endl;
+    }
+
     if (ok1 && ok2) { if (d1 < d2) ok2 = false; else ok1 = false; }
+
+    // *** DEBUG ***
+    if (flag_debug2) {
+      using namespace std;
+      if (ok1) { cerr << "  Cube 1." << endl; }
+      else if (ok2) { cerr << "  Cube 2." << endl; }
+      cerr << endl;
+    }
     
     if      (ok1)  { _point = p1; _normal = n1; _distance = d1; return true; }
     else if (ok2)  { _point = p2; _normal = n2; _distance = d2; return true; }
-    
+
     return false;
   }
 

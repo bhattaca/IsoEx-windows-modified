@@ -25,13 +25,14 @@
 
 //=============================================================================
 //
-//  CLASS ImplicitSphere
+//  CLASS ImplicitOpenCylinder
 //
 //=============================================================================
 
 
-#ifndef ISOEX_IMPLICITSPHERE_HH
-#define ISOEX_IMPLICITSPHERE_HH
+
+#ifndef ISOEX_IMPLICITOPENCYLINDER_HH
+#define ISOEX_IMPLICITOPENCYLINDER_HH
 
 
 //== INCLUDES =================================================================
@@ -46,14 +47,13 @@ namespace IsoEx {
 //== CLASS DEFINITION =========================================================
 
 	      
-/** \class ImplicitSphere ImplicitSphere.hh <IsoEx/Implicits/ImplicitSphere.hh>
-    This class implements a very simple implicit object: a sphere given its
-    center and its radius.
+/** \class ImplicitOpenCylinder ImplicitOpenCylinder.hh <IsoEx/Implicits/ImplicitOpenCylinder.hh>
+    This class implements an implicit open cylinder given by a line and a radius.
     \see IsoEx::Implicit
     \ingroup implicits
 */	      
 template< class Vec3 >
-class ISOEXDLLEXPORT ImplicitSphere : public Implicit<Vec3>
+class ISOEXDLLEXPORT ImplicitOpenCylinder : public Implicit<Vec3>
 {
 public:
 
@@ -62,15 +62,18 @@ public:
   /// \name Constructor & destructor
   //@{
 
-  /// Constructor: given sphere center and radius
-  ImplicitSphere(const Vec3& _center, real _radius)
-    : center_(_center), 
-      radius_(_radius), 
-      sqr_radius_(_radius*_radius)
-  {}
+  /// Constructor: given cube center and width
+  ImplicitOpenCylinder(const Vec3& _p, const Vec3& _dir, 
+                         const real _radius)
+    : line_p0_(_p),
+      radius_(_radius)
+  {
+    line_dir_ = _dir;
+    line_dir_.normalize();
+  }
 
   /// Empty destructor
-  ~ImplicitSphere() {}
+  ~ImplicitOpenCylinder() {}
 
   //@}
 
@@ -79,14 +82,30 @@ public:
   /// \name Abstract interface of implicit objects, see also IsoEx::Implicit.
   //@{
 
+  void compute_dist2line(const Vec3& _point, real & dist) const
+  {
+    Vec3 v(_point - line_p0_);
+
+    Vec3 v_orth;               // Component of v orthogonal to line_dir_
+    v_orth = v - line_dir_ * (v | line_dir_);
+    dist = v_orth.norm();
+  }
+
   bool is_inside(const Vec3& _point) const
   {
-    return (center_ - _point).sqrnorm() <= sqr_radius_;
+    real dist;
+    compute_dist2line(_point, dist);
+
+    return (dist <= radius_);
   }
 
   real scalar_distance(const Vec3& _point) const
   {
-    return (center_ - _point).norm() - radius_;
+    real dist;
+
+    compute_dist2line(_point, dist);
+
+    return (dist - radius_);
   }
 
   bool directed_distance(const Vec3&  _p0,
@@ -95,11 +114,16 @@ public:
 			 Vec3&        _normal,
 			 real&        _distance) const
   {
-    Vec3 orig(_p0), dir(_p1-_p0);
+    Vec3 orig(_p0), dirA(_p1-_p0), vA(orig - line_p0_);
 
-    double a = dir.sqrnorm();
-    double b = 2.0*(dir | (orig - center_));
-    double c = (orig - center_).sqrnorm() - radius_*radius_;
+    Vec3 dirA_orth;             // Component of dirA orthogonal to line_dir_
+    dirA_orth = dirA - line_dir_ * (dirA | line_dir_);
+    Vec3 vA_orth;               // Component of vA orthogonal to line_dir_
+    vA_orth = vA - line_dir_ * (vA | line_dir_);
+
+    double a = dirA_orth.sqrnorm();
+    double b = 2.0*(dirA_orth | vA_orth);
+    double c = vA_orth.sqrnorm() - radius_*radius_;
     double d = b*b - 4.0*a*c;
 
     if (d >= 0)
@@ -108,17 +132,24 @@ public:
 
       double t1 = (-b-d) / (2.0*a);
       double t2 = (-b+d) / (2.0*a);
-      double t  = 1.00001;
-      if (t1 >= 0.0 && t1 < t) t = t1;
-      if (t2 >= 0.0 && t2 < t) t = t2;
+      double t;
+      if (t1 >= 0.0 && t2 >= 0.0) 
+        { t = std::min(t1, t2); }
+      else if (t1 > 0.0) 
+        { t = t1; }
+      else if (t2 > 0.0) 
+        { t = t2; }
+      else
+        { return false ; }
 
-      if (t != 1.00001)
-      {
-        _point    = orig + dir*t;
-        _normal   = (_point - center_) / radius_;
-        _distance = ((dir | _normal) < 0.0) ? dir.norm()*t : -dir.norm()*t;
-        return true;
-      }
+      _point    = orig + dirA*t;
+
+      Vec3 vB = _point - line_p0_;
+      Vec3 vB_orth = vB - line_dir_ * (vB | line_dir_);
+      _normal   = vB_orth / radius_;
+      _distance = ((dirA | _normal) < 0.0) ? dirA.norm()*t : -dirA.norm()*t;
+
+      return true;
     }
 
     return false;
@@ -127,17 +158,20 @@ public:
   //@}
 
 
-private:
+protected:
 
-  Vec3  center_;
-  real            radius_;
-  real            sqr_radius_;
+  // Open ylinder is determined by a point, a direction, and a radius.
+  // The point and direction define a line.
+  // The cylinder is symmetric around the line.
+  Vec3  line_dir_;
+  Vec3  line_p0_;
+  real  radius_;
 };
 
 
 //=============================================================================
 } // namespace IsoEx
 //=============================================================================
-#endif // ISOEX_IMPLICITSPHERE_HH defined
+#endif // ISOEX_IMPLICITOPENCYLINDER_HH defined
 //=============================================================================
 

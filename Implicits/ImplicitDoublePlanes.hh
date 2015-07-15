@@ -25,13 +25,14 @@
 
 //=============================================================================
 //
-//  CLASS ImplicitSphere
+//  CLASS ImplicitDoublePlanes
 //
 //=============================================================================
 
 
-#ifndef ISOEX_IMPLICITSPHERE_HH
-#define ISOEX_IMPLICITSPHERE_HH
+
+#ifndef ISOEX_IMPLICITDOUBLEPLANES_HH
+#define ISOEX_IMPLICITDOUBLEPLANES_HH
 
 
 //== INCLUDES =================================================================
@@ -46,14 +47,13 @@ namespace IsoEx {
 //== CLASS DEFINITION =========================================================
 
 	      
-/** \class ImplicitSphere ImplicitSphere.hh <IsoEx/Implicits/ImplicitSphere.hh>
-    This class implements a very simple implicit object: a sphere given its
-    center and its radius.
+/** \class ImplicitDoubleplanes ImplicitDoublePlanes.hh <IsoEx/Implicits/ImplicitDoubleplanes.hh>
+    This class implements an implicit two planes given by a point, a direction orthogonal to the planes and a distance between the planes.
     \see IsoEx::Implicit
     \ingroup implicits
 */	      
 template< class Vec3 >
-class ISOEXDLLEXPORT ImplicitSphere : public Implicit<Vec3>
+class ISOEXDLLEXPORT ImplicitDoublePlanes : public Implicit<Vec3>
 {
 public:
 
@@ -62,15 +62,19 @@ public:
   /// \name Constructor & destructor
   //@{
 
-  /// Constructor: given sphere center and radius
-  ImplicitSphere(const Vec3& _center, real _radius)
-    : center_(_center), 
-      radius_(_radius), 
-      sqr_radius_(_radius*_radius)
-  {}
+  /// Constructor: given cube center and width
+  ImplicitDoublePlanes(const Vec3& _p, const Vec3& _orth_dir, 
+                    const real _distance_between_planes)
+    : center_(_p),
+      distance_between_planes_(_distance_between_planes)
+  {
+    orth_dir_ = _orth_dir;
+    orth_dir_.normalize();
+    distance_to_center_ = distance_between_planes_ / 2.0;
+  }
 
   /// Empty destructor
-  ~ImplicitSphere() {}
+  ~ImplicitDoublePlanes() {}
 
   //@}
 
@@ -79,14 +83,28 @@ public:
   /// \name Abstract interface of implicit objects, see also IsoEx::Implicit.
   //@{
 
+  // Compute the (non-negative) distance to the plane through center_
+  void compute_dist2plane(const Vec3& _point, real & dist) const
+  {
+    dist = ((_point - center_) | orth_dir_);
+    if (dist < 0) { dist = -dist; }
+  }
+
   bool is_inside(const Vec3& _point) const
   {
-    return (center_ - _point).sqrnorm() <= sqr_radius_;
+    real dist;
+    compute_dist2plane(_point, dist);
+
+    return (dist < distance_to_center_);
   }
 
   real scalar_distance(const Vec3& _point) const
   {
-    return (center_ - _point).norm() - radius_;
+    real dist;
+
+    compute_dist2plane(_point, dist);
+
+    return (dist - distance_to_center_);
   }
 
   bool directed_distance(const Vec3&  _p0,
@@ -95,49 +113,58 @@ public:
 			 Vec3&        _normal,
 			 real&        _distance) const
   {
-    Vec3 orig(_p0), dir(_p1-_p0);
+    Vec3 orig(_p0), dir(_p1-_p0), v(orig - center_);
+    real epsilon(0.00001);
 
-    double a = dir.sqrnorm();
-    double b = 2.0*(dir | (orig - center_));
-    double c = (orig - center_).sqrnorm() - radius_*radius_;
-    double d = b*b - 4.0*a*c;
 
-    if (d >= 0)
-    {
-      d = sqrt(d);
+    real xdir = (dir | orth_dir_);
+    real xv = (v | orth_dir_);
 
-      double t1 = (-b-d) / (2.0*a);
-      double t2 = (-b+d) / (2.0*a);
-      double t  = 1.00001;
-      if (t1 >= 0.0 && t1 < t) t = t1;
-      if (t2 >= 0.0 && t2 < t) t = t2;
+    if ((-epsilon < xdir) && (xdir < epsilon)) { return false; }
 
-      if (t != 1.00001)
-      {
-        _point    = orig + dir*t;
-        _normal   = (_point - center_) / radius_;
-        _distance = ((dir | _normal) < 0.0) ? dir.norm()*t : -dir.norm()*t;
-        return true;
-      }
+    real t1 = (distance_to_center_ - xv) / xdir;
+    real t2 = (-distance_to_center_ - xv) / xdir;
+
+    if (xdir > 0) { _normal = orth_dir_; }
+    else { _normal = -orth_dir_; }
+
+    real t;
+    if (t1 > 0.0 && t2 > 0.0) {
+      t = std::min(t1, t2);
+
+      // normal is in opposite direction of dir.
+      _normal = -_normal;
     }
+    else if (t1 > 0.0) 
+      { t = t1; }
+    else if (t2 > 0.0) 
+      { t = t2; }
+    else {
+      return false;
+    }
+    
+    _point    = orig + dir*t;
+    _distance = ((dir | _normal) < 0.0) ? dir.norm()*t : -dir.norm()*t;
 
-    return false;
+    return true;
   }
   
   //@}
 
 
-private:
+protected:
 
+  // Double plane is determined by a point, an orthogonal direction, and the distance between planes.
   Vec3  center_;
-  real            radius_;
-  real            sqr_radius_;
+  Vec3  orth_dir_;
+  real  distance_between_planes_;
+  real  distance_to_center_;
 };
 
 
 //=============================================================================
 } // namespace IsoEx
 //=============================================================================
-#endif // ISOEX_IMPLICITSPHERE_HH defined
+#endif // ISOEX_IMPLICITDOUBLEPLANES_HH defined
 //=============================================================================
 
