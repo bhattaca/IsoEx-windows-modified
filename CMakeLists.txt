@@ -96,6 +96,7 @@ else(NOT APPLE)
 endif(NOT APPLE)
 
 add_subdirectory(Apps)
+add_subdirectory(Apps2)
 
 # display results
 acg_print_configure_header (ISOEX "IsoEx")

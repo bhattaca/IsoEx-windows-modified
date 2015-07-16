@@ -34,6 +34,10 @@
 #ifndef ISOEX_IMPLICITOPENCYLINDER_HH
 #define ISOEX_IMPLICITOPENCYLINDER_HH
 
+// *** DEBUG ***
+#include <iostream>
+bool flag_debug_cyl(false);
+
 
 //== INCLUDES =================================================================
 
@@ -126,12 +130,22 @@ public:
     double c = vA_orth.sqrnorm() - radius_*radius_;
     double d = b*b - 4.0*a*c;
 
+    // *** DEBUG ***
+    if (flag_debug_cyl) {
+      using namespace std;
+      cerr << "*** ImplicitOpenCylinder: radius: " << radius_ << endl;
+      cerr << "  Point " << orig;
+      cerr << "  dirA: " << dirA << endl;
+    }
+
     if (d >= 0)
     {
       d = sqrt(d);
 
       double t1 = (-b-d) / (2.0*a);
       double t2 = (-b+d) / (2.0*a);
+
+      // *** DEBUG
       double t;
       if (t1 >= 0.0 && t2 >= 0.0) 
         { t = std::min(t1, t2); }
@@ -148,6 +162,15 @@ public:
       Vec3 vB_orth = vB - line_dir_ * (vB | line_dir_);
       _normal   = vB_orth / radius_;
       _distance = ((dirA | _normal) < 0.0) ? dirA.norm()*t : -dirA.norm()*t;
+
+      // *** DEBUG ***
+      if (flag_debug_cyl) {
+        using namespace std;
+        cerr << "  Intersection point: " << _point;
+        cerr << "  normal: " << _normal << endl;
+        cerr << "  t: " << t
+             << "  Distance: " << _distance << endl;
+      }
 
       return true;
     }

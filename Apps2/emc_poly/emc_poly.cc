@@ -30,8 +30,13 @@
 #include <IsoEx/Implicits/ImplicitSphere.hh>
 #include <IsoEx/Implicits/ImplicitAxisParallelCube.hh>
 #include <IsoEx/Implicits/ImplicitCube.hh>
-#include <IsoEx/Implicits/ImplicitOpenCylinder.hh>
+#include <IsoEx/Implicits/ImplicitCylinder.hh>
+
+// *** DEPRECATED
 #include <IsoEx/Implicits/ImplicitDoublePlanes.hh>
+
+
+#include <IsoEx/Implicits/ImplicitAnnulus.hh>
 #include <IsoEx/Implicits/csg.hh>
 
 #include <IsoEx/Grids/ImplicitGridT.hh>
@@ -72,9 +77,25 @@ typedef TriMesh_ArrayKernelT<MyTraits>  MyMesh;
 //-----------------------------------------------------------------------------
 
 typedef enum { MC, EMC } MODE;
-typedef enum { SPHEREII, SPHEREIII, SPHERE_DIFF, CUBE, CUBEII,
-               CYLINDER, ANNULUS } 
+typedef enum { SPHERE, CUBE, CYLINDER, ANNULUS } 
   LEVEL_SET_TYPE;
+typedef enum { UNION, INTERSECTION, DIFFERENCE } CSG_OPERATION;
+
+//-----------------------------------------------------------------------------
+
+
+// global variables
+VectorType origin(-2, -2, -2);
+VectorType xaxis(4, 0, 0);
+VectorType yaxis(0, 4, 0);
+VectorType zaxis(0, 0, 4);
+
+const char*       filename = "output.off";
+unsigned int      res      = 50;
+MODE              mode     = EMC;
+LEVEL_SET_TYPE    object   = CUBE;
+float             feature_angle    = 30.0;
+
 
 //-----------------------------------------------------------------------------
 
@@ -82,7 +103,7 @@ typedef enum { SPHEREII, SPHEREIII, SPHERE_DIFF, CUBE, CUBEII,
 void usage(const char* _argv0)
 {
   std::cerr << "\n\nUsage: \n"
-            << _argv0 << "  <-e | -m> <-s2 | -s3 | -sdiff | -c | -c2> \n"
+            << _argv0 << "  <-e | -m> <-sphere | -cube | -cyl | -ann> \n"
             << "      <-a angle> <-r resolution> <-o filename> \n"
             << "      <-center1 x y z> <-center2 x y z>\n"
             << "      <-radius1 r> <-radius2 r>\n"
@@ -91,11 +112,8 @@ void usage(const char* _argv0)
   
   std::cerr << "  -e      Use Extended Marching Cubes (default)\n"
             << "  -m      Use standard Marching Cubes\n"
-            << "  -s2     Union of 2 spheres\n"
-            << "  -sdiff  Difference of 2 spheres\n"
-            << "  -s3     Combination of 3 spheres (default)\n"
-            << "  -c      Cube\n"
-            << "  -c2     Union of 2 cubes\n"
+            << "  -sphere Sphere\n"
+            << "  -cube   Cube\n"
             << "  -cyl    Cylinder\n"
             << "  -ann    Annulus\n"
             << "  -a      Feature detection threshold\n"
@@ -103,7 +121,7 @@ void usage(const char* _argv0)
             << "  -o      Write result to filename (should be *.{off,obj,stl}), \n"
             << "          (Default: output.off)\n"
             << "  -center1 x y z  Set center of object 1 to (x,y,z)\n"
-            << "  -center1 x y z  Set center of object 1 to (x,y,z)\n"
+            << "  -center2 x y z  Set center of object 2 to (x,y,z)\n"
             << "  -radius1 r      Set radius of sphere 1 to r\n"
             << "  -radius2 r      Set radius of sphere 2 to r\n"
             << "  -dir x y z      Set direction of cube facet to (x,y,z)\n"
@@ -176,28 +194,44 @@ void extract_mesh
 
 //-----------------------------------------------------------------------------
 
+// forward declarations
+void build_grid_extract_mesh(const Implicit<VectorType> & implicit_);
+void extract_from_union(const Implicit<VectorType> & implicit1_,
+                        const Implicit<VectorType> & implicit2_);
+void extract_from_csg(const Implicit<VectorType> & implicit1_,
+                      const Implicit<VectorType> & implicit2_,
+                      const CSG_OPERATION csg_op);
+void extract_from_csg(const Implicit<VectorType> & implicit1_,
+                      const Implicit<VectorType> & implicit2_,
+                      const Implicit<VectorType> & implicit3_,
+                      const CSG_OPERATION csg_op1,
+                      const CSG_OPERATION csg_op2);
+void error_too_many_objects();
+
+//-----------------------------------------------------------------------------
+
 
 int main(int argc, char** argv)
 {
   // parameters
-  const char*       filename = "output.off";
-  unsigned int      res      = 50;
-  MODE              mode     = EMC;
-  LEVEL_SET_TYPE    object   = SPHEREIII;
-  float             angle    = 30.0;
-  bool              flag_tilt = true;
-
+  CSG_OPERATION     csg_op1(UNION);
+  CSG_OPERATION     csg_op2(DIFFERENCE);
+  int               num_objects(1);
   VectorType        center1(0,0,0);
-  VectorType        center2(1,0,0);
-  VectorType        center3(1,1,0);
+  VectorType        center2(0.5,0.5,0.5);
+  VectorType        center3(0.2, 0.2, 1);
   VectorType        dirA(1,0,0);
   VectorType        dirB(0,1,0);
   float             radius1(1.0);
-  float             radius2(0.7);
-  float             radius3(1.2);
+  float             radius2(0.9);
+  float             radius3(0.7);
+  float             cube_width(2.0);
   float             height(1.0);
   float             annulus_width(0.5);
-  float             flange_wh(0.2);
+  float             flange_width(0.5);
+  float             flange_height(0.5);
+  bool              flag_flange(false);
+  bool              flag_tilt = true;
   
   
   // parse command line
@@ -209,20 +243,24 @@ int main(int argc, char** argv)
   while (iarg < argc) {
    std::cout <<"argv["<< iarg <<"] = "<< argv[iarg] << std::endl;
    std::string s = std::string(argv[iarg]);
-   if ( s == "a"){angle = atof(argv[++iarg]);}
-   else if ( s == "-e") { mode = EMC;}
-   else if ( s == "-m") { mode = MC;}
-   else if ( s == "-o") { filename= argv[++iarg];}
-   else if ( s == "-r") { res = atoi(argv[++iarg]);}
-   else if ( s == "-h") { usage(argv[0]); exit(0);}
-   else if ( s == "-s2") { object = SPHEREII; }
-   else if ( s == "-s3") { object = SPHEREIII; }
-   else if ( s == "-sdiff") { object = SPHERE_DIFF; }
-   else if ( s == "-c") { object = CUBE; }
-   else if ( s == "-c2") { object = CUBEII; }
+   if ( s == "a") { feature_angle = atof(argv[++iarg]);}
+   else if ( s == "-e") { mode = EMC; }
+   else if ( s == "-m") { mode = MC; }
+   else if ( s == "-o") { filename= argv[++iarg]; }
+   else if ( s == "-r") { res = atoi(argv[++iarg]); }
+   else if ( s == "-h") { usage(argv[0]); exit(0); }
+   else if ( s == "-sphere") { object = SPHERE; }
+   else if ( s == "-cube") { object = CUBE; }
    else if ( s == "-no_tilt") { flag_tilt = false; }
    else if ( s == "-cyl") { object = CYLINDER; }
    else if ( s == "-ann") { object = ANNULUS; }
+   else if ( s == "-n") { num_objects = atoi(argv[++iarg]); }
+   else if ( s == "-union" || s == "-union1" ) { csg_op1 = UNION; }
+   else if ( s == "-inter" || s == "-inter1" ) { csg_op1 = INTERSECTION; }
+   else if ( s == "-diff" || s == "-diff1" ) { csg_op1 = DIFFERENCE; }
+   else if ( s == "-union2" ) { csg_op2 = UNION; }
+   else if ( s == "-inter2" ) { csg_op2 = INTERSECTION; }
+   else if ( s == "-diff2" ) { csg_op2 = DIFFERENCE; }
    else if ( s == "-center" || s == "-center1") {
      get_coord(iarg, argc, argv, center1);
      iarg += 3;
@@ -231,7 +269,7 @@ int main(int argc, char** argv)
      get_coord(iarg, argc, argv, center2);
      iarg += 3;
    }
-   else if (s == "-radius" || s == "radius1") {
+   else if ( s == "-radius" || s == "-radius1") {
      string2val(argv[++iarg], radius1);
    }
    else if (s == "-radius2") {
@@ -244,6 +282,11 @@ int main(int argc, char** argv)
    else if ( s == "-side_dir") {
      get_coord(iarg, argc, argv, dirB);
      iarg += 3;
+   }
+   else if ( s == "-flange_wh" ) {
+     string2val(argv[++iarg], flange_width);
+     string2val(argv[++iarg], flange_height);
+     flag_flange = true;
    }
    else { 
      std::cerr <<"Unrecognised. \n"<< argv[iarg] << std::endl;
@@ -262,7 +305,7 @@ int main(int argc, char** argv)
 
     case EMC: 
       std::cout << "Extended Marching Cubes\n"
-		<< "Feature detection angle: " << angle 
+		<< "Feature detection angle: " << feature_angle 
 		<< std::endl;
       break;
   }
@@ -270,113 +313,113 @@ int main(int argc, char** argv)
   std::cout << "Output: " << filename << std::endl;
 
   
-  VectorType origin(-2, -2, -2);
-  VectorType xaxis(4, 0, 0);
-  VectorType yaxis(0, 4, 0);
-  VectorType zaxis(0, 0, 4);
-
-  // axis parallel cubes
-  ImplicitAxisParallelCube<VectorType>   cubeX1(center1, 1.0);
-  ImplicitAxisParallelCube<VectorType>   cubeX2(center2, 1.0);
-  CSG::Union<VectorType>     two_cubesX(cubeX1, cubeX2);
-
-  // cubes
-  ImplicitCube<VectorType>   cube1(center1, dirA, dirB, 1.0);
-  ImplicitCube<VectorType>   cube2(center2, dirA, dirB, 1.0);
-  CSG::Union<VectorType>     two_cubes(cube1, cube2);
-
-  // spheres
-  ImplicitSphere<VectorType>     sphere1(center1, radius1);
-  ImplicitSphere<VectorType>     sphere2(center2, radius2);
-  ImplicitSphere<VectorType>     sphere3(center3, radius3);
-  CSG::Union<VectorType>         i1(sphere1, sphere2);
-  CSG::Difference<VectorType>    i2(i1, sphere3);
-  CSG::Difference<VectorType>    diff_s1_s2(sphere1, sphere2);
-
   // double planes
   ImplicitDoublePlanes<VectorType>   h1(center1, dirA, height);
 
-  // cylinders
-  ImplicitOpenCylinder<VectorType> open_cylinder1(center1, dirA, radius1);
-  ImplicitOpenCylinder<VectorType> open_cylinder2(center2, dirA, radius2);
-  CSG::Intersection<VectorType>    cylinder1(open_cylinder1, h1); 
+  if (object == SPHERE) {
 
-  // annulus
-  ImplicitOpenCylinder<VectorType> 
-    open_cylinder3(center1, dirA, radius1+annulus_width/2.0);
-  ImplicitOpenCylinder<VectorType> 
-    open_cylinder4(center1, dirA, radius1-annulus_width/2.0);
-  CSG::Difference<VectorType> 
-    diff_ocyl3_ocyl4(open_cylinder3, open_cylinder4);
-  CSG::Intersection<VectorType>    annulus1(diff_ocyl3_ocyl4, h1);
+    if (num_objects == 1) {
+      ImplicitSphere<VectorType>     sphere1(center1, radius1);
+      build_grid_extract_mesh(sphere1);
+    }
+    else if (num_objects == 2) {
+      ImplicitSphere<VectorType>     sphere1(center1, radius1);
+      ImplicitSphere<VectorType>     sphere2(center2, radius2);
 
+      extract_from_csg(sphere1, sphere2, csg_op1);
+    }
+    else if (num_objects == 3) {
+      ImplicitSphere<VectorType>     sphere1(center1, radius1);
+      ImplicitSphere<VectorType>     sphere2(center2, radius2);
+      ImplicitSphere<VectorType>     sphere3(center3, radius3);
 
-  if (object == SPHEREII) {
+      extract_from_csg(sphere1, sphere2, sphere3, csg_op1, csg_op2);
+    }
+    else 
+      { error_too_many_objects(); }
 
-    ImplicitGrid<VectorType> grid
-      (i1, origin, xaxis, yaxis, zaxis, res, res, res);
-
-    extract_mesh(grid, angle, mode, filename);
-  }
-  else if (object == SPHEREIII) {
-
-    ImplicitGrid<VectorType> grid
-      (i2, origin, xaxis, yaxis, zaxis, res, res, res);
-
-    extract_mesh(grid, angle, mode, filename);
-  }
-  else if (object == SPHERE_DIFF) {
-    ImplicitGrid<VectorType> grid
-      (diff_s1_s2, origin, xaxis, yaxis, zaxis, res, res, res);
-
-    extract_mesh(grid, angle, mode, filename);
   }
   else if (object == CUBE) {
 
     if (flag_tilt) {
 
-      ImplicitGrid<VectorType> grid
-        (cube1, origin, xaxis, yaxis, zaxis, res, res, res);
+      if (num_objects == 1) {
+        ImplicitCube<VectorType>   cube1(center1, dirA, dirB, cube_width);
+        build_grid_extract_mesh(cube1);
+      }
+      else if (num_objects == 2) {
+        ImplicitCube<VectorType>   cube1(center1, dirA, dirB, cube_width);
+        ImplicitCube<VectorType>   cube2(center2, dirA, dirB, cube_width);;
 
-      extract_mesh(grid, angle, mode, filename);
+        extract_from_csg(cube1, cube2, csg_op1);
+      }
+      else if (num_objects == 3) {
+        ImplicitCube<VectorType>   cube1(center1, dirA, dirB, cube_width);;
+        ImplicitCube<VectorType>   cube2(center2, dirA, dirB, cube_width);;
+        ImplicitCube<VectorType>   cube3(center3, dirA, dirB, cube_width);;
+
+        extract_from_csg(cube1, cube2, cube3, csg_op1, csg_op2);
+      }
+      else 
+        { error_too_many_objects(); }
     }
     else {
-      ImplicitGrid<VectorType> grid
-        (cubeX1, origin, xaxis, yaxis, zaxis, res, res, res);
 
-      extract_mesh(grid, angle, mode, filename);
+      if (num_objects == 1) {
+        ImplicitAxisParallelCube<VectorType>   cubeX1(center1, cube_width);;
+        build_grid_extract_mesh(cubeX1);
+      }
+      else if (num_objects == 2) {
+        ImplicitAxisParallelCube<VectorType>   cubeX1(center1, cube_width);;
+        ImplicitAxisParallelCube<VectorType>   cubeX2(center2, cube_width);;
+
+        extract_from_csg(cubeX1, cubeX2, csg_op1);
+      }
+      else if (num_objects == 3) {
+        ImplicitAxisParallelCube<VectorType>   cubeX1(center1, cube_width);;
+        ImplicitAxisParallelCube<VectorType>   cubeX2(center2, cube_width);;
+        ImplicitAxisParallelCube<VectorType>   cubeX3(center3, cube_width);;
+
+        extract_from_csg(cubeX1, cubeX2, cubeX3, csg_op1, csg_op2);
+      }
+      else 
+        { error_too_many_objects(); }
     }
-  }
-  else if (object == CUBEII) {
-
-    if (flag_tilt) {
-
-      ImplicitGrid<VectorType> grid
-        (two_cubes, origin, xaxis, yaxis, zaxis, res, res, res);
-
-      extract_mesh(grid, angle, mode, filename);
-    }
-    else {
-      ImplicitGrid<VectorType> grid
-        (two_cubesX, origin, xaxis, yaxis, zaxis, res, res, res);
-
-      extract_mesh(grid, angle, mode, filename);
-    }
-
   }
   else if (object == CYLINDER) {
 
-    ImplicitGrid<VectorType> grid
-      (cylinder1, origin, xaxis, yaxis, zaxis, res, res, res);
+    if (flag_flange) {
+      ImplicitCylinder<VectorType> 
+        cylinder1(center1, dirA, radius1+2*flange_width, height);
+      ImplicitCylinder<VectorType> 
+        cylinder2(center1, dirA, radius1, height+2*flange_height);
 
-    extract_mesh(grid, angle, mode, filename);
+      extract_from_union(cylinder1, cylinder2);
+    }
+    else {
+      ImplicitCylinder<VectorType> cylinder1(center1, dirA, radius1, height);
+      build_grid_extract_mesh(cylinder1);
+    }
+
   }
   else if (object == ANNULUS) {
 
-    ImplicitGrid<VectorType> grid
-      (annulus1, origin, xaxis, yaxis, zaxis, res, res, res);
+    if (flag_flange) {
 
-    extract_mesh(grid, angle, mode, filename);
+      // *** NOT WORKING ***
+      ImplicitAnnulus<VectorType> 
+        annulus1(center1, dirA, radius1, annulus_width+2*flange_width, height);
+      ImplicitAnnulus<VectorType> 
+        annulus2(center1, dirA, radius1, annulus_width, height+2*flange_height);
+      
+      extract_from_union(annulus1, annulus2);
+    }
+    else {
+      ImplicitAnnulus<VectorType> 
+        annulus1(center1, dirA, radius1, annulus_width, height);
+      build_grid_extract_mesh(annulus1);
+    }
+
   }
   else {
     std::cerr << "Error. Unknown level set type." << std::endl;
@@ -389,3 +432,87 @@ int main(int argc, char** argv)
 
 
 //-----------------------------------------------------------------------------
+
+// Build implicit grid and then extract mesh.
+void build_grid_extract_mesh(const Implicit<VectorType> & implicit_)
+{
+  ImplicitGrid<VectorType> 
+    grid(implicit_, origin, xaxis, yaxis, zaxis, res, res, res);
+
+  extract_mesh(grid, feature_angle, mode, filename);
+}
+
+void extract_from_union(const Implicit<VectorType> & implicit1_,
+                        const Implicit<VectorType> & implicit2_)
+{
+  CSG::Union<VectorType>     union_1_2(implicit1_, implicit2_);
+  build_grid_extract_mesh(union_1_2);
+}
+
+
+void extract_from_intersection(const Implicit<VectorType> & implicit1_,
+                               const Implicit<VectorType> & implicit2_)
+{
+  CSG::Intersection<VectorType>   intersection_1_2(implicit1_, implicit2_);
+  build_grid_extract_mesh(intersection_1_2);
+}
+
+
+void extract_from_difference(const Implicit<VectorType> & implicit1_,
+                             const Implicit<VectorType> & implicit2_)
+{
+  CSG::Difference<VectorType>   difference_1_2(implicit1_, implicit2_);
+  build_grid_extract_mesh(difference_1_2);
+}
+
+void undefined_csg_operation()
+{
+  using namespace std;
+  cerr << "Programming error.  Undefined CSG operation." << endl;
+  cerr << "Exiting..." << endl;
+  exit(200);
+}
+
+void extract_from_csg(const Implicit<VectorType> & implicit1_,
+                      const Implicit<VectorType> & implicit2_,
+                      const CSG_OPERATION csg_op)
+{
+  if (csg_op == UNION) 
+    { extract_from_union(implicit1_, implicit2_); }
+  else if (csg_op == INTERSECTION) 
+    { extract_from_intersection(implicit1_, implicit2_); }
+  else if (csg_op == DIFFERENCE) 
+    { extract_from_difference(implicit1_, implicit2_); }
+  else
+    { undefined_csg_operation(); }
+}
+
+void extract_from_csg(const Implicit<VectorType> & implicit1_,
+                      const Implicit<VectorType> & implicit2_,
+                      const Implicit<VectorType> & implicit3_,
+                      const CSG_OPERATION csg_op1,
+                      const CSG_OPERATION csg_op2)
+{
+  if (csg_op1 == UNION) {
+    CSG::Union<VectorType>     union_1_2(implicit1_, implicit2_);
+    extract_from_csg(union_1_2, implicit3_, csg_op2);
+  }
+  else if (csg_op1 == INTERSECTION) {
+    CSG::Intersection<VectorType>   intersection_1_2(implicit1_, implicit2_);
+    extract_from_csg(intersection_1_2, implicit3_, csg_op2);
+  }
+  else if (csg_op1 == DIFFERENCE) {
+    CSG::Difference<VectorType>   difference_1_2(implicit1_, implicit2_);
+    extract_from_csg(difference_1_2, implicit3_, csg_op2);
+  }
+  else
+    { undefined_csg_operation(); }
+}
+
+void error_too_many_objects()
+{
+  using namespace std;
+  cerr << "Too many objects.  Reduce argument of -n." << endl;
+  cerr << "Exiting..." << endl;
+  exit(210);
+}

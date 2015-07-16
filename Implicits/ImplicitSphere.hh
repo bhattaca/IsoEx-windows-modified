@@ -39,6 +39,10 @@
 #include "Implicit.hh"
 #include <IsoEx/Config/IsoExDefines.hh>
 
+// *** DEBUG ***
+#include <iostream>
+bool flag_debug_sphere(false);
+
 //== NAMESPACES ===============================================================
 
 namespace IsoEx {
@@ -108,6 +112,15 @@ public:
 
       double t1 = (-b-d) / (2.0*a);
       double t2 = (-b+d) / (2.0*a);
+
+      /// *** DEBUG ***
+      if (flag_debug_sphere) {
+        using namespace std;
+        cerr << "sss Sphere.  radius: " << radius_ << endl;
+        cerr << "  Point: " << orig << "  Direction: " << dir << endl;
+        cerr << "  t1: " << t1 << "  t2: " << t2 << endl;
+      }
+
       double t  = 1.00001;
       if (t1 >= 0.0 && t1 < t) t = t1;
       if (t2 >= 0.0 && t2 < t) t = t2;

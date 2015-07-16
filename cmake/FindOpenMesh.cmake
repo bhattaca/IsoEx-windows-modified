@@ -53,6 +53,7 @@ IF (NOT OPENMESH_FOUND)
   SET (SEARCH_PATHS 
     /usr/local/
     /usr/
+    /home/4/wenger/research/isosurface/OpenMesh/build
     "${CMAKE_SOURCE_DIR}/OpenMesh/src/OpenMesh"
     "${CMAKE_SOURCE_DIR}/libs_required/OpenMesh/src/OpenMesh"
     "${CMAKE_SOURCE_DIR}/../OpenMesh/src/OpenMesh"

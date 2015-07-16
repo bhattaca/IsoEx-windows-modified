@@ -40,6 +40,10 @@
 #include <vector>
 #include <float.h>
 
+// *** DEBUG ***
+#include <iostream>
+bool flag_debug_isoex(false);
+
 //== NAMESPACES ===============================================================
 
 namespace IsoEx {
@@ -120,7 +124,6 @@ process_cube(CubeIdx _idx)
   if (edgeTable[cubetype]&2048) samples[11] = add_vertex(corner[3], corner[7]);
 
 
-
   // connect samples by triangles
   n_components =  triTable[cubetype][1][0];
   indices      = &triTable[cubetype][1][n_components+1];
@@ -146,7 +149,7 @@ process_cube(CubeIdx _idx)
     {
       vhandles.push_back(vhandles[0]);
       for (j=0; j<n_vertices; ++j)
-	mesh_.add_face(vhandles[j], vhandles[j+1], vh);
+        mesh_.add_face(vhandles[j], vhandles[j+1], vh);
     }
 
 
@@ -154,9 +157,9 @@ process_cube(CubeIdx _idx)
     else
     {
       for (j=0; polyTable[n_vertices][j] != -1; j+=3)
-	mesh_.add_face( samples[indices[polyTable[n_vertices][  j]]],
-			samples[indices[polyTable[n_vertices][j+1]]],
-			samples[indices[polyTable[n_vertices][j+2]]] );
+        mesh_.add_face( samples[indices[polyTable[n_vertices][  j]]],
+                        samples[indices[polyTable[n_vertices][j+1]]],
+                        samples[indices[polyTable[n_vertices][j+2]]] );
     }
     
     indices += n_vertices;
@@ -176,8 +179,6 @@ add_vertex(PointIdx _p0, PointIdx _p1)
   VertexHandle   vh = edge2vertex_.find(_p0, _p1);
   if (vh.is_valid())  return vh;
 
-
-
   // generate new vertex
   const typename Mesh::Point  p0(grid_.point(_p0));
   const typename Mesh::Point  p1(grid_.point(_p1));
@@ -191,6 +192,7 @@ add_vertex(PointIdx _p0, PointIdx _p1)
     float s0 = fabs(grid_.scalar_distance(_p0));
     float s1 = fabs(grid_.scalar_distance(_p1));
     float t  = s0 / (s0+s1);
+
 	//debug
 	//float t1 = 1.0-t; 
     //point = t1*p0 + t*p1;
@@ -217,7 +219,11 @@ find_feature(const VertexHandleVector& _vhandles)
 {
   unsigned int i, j, nV = _vhandles.size(), rank;
 
-
+  // *** DEBUG ***
+  if (flag_debug_isoex) {
+    using namespace std;
+    cerr << endl << "--- In find_feature:" << endl;
+  }
 
   // collect point & normals;
   std::vector<typename Mesh::Point>  p, n;
@@ -227,8 +233,12 @@ find_feature(const VertexHandleVector& _vhandles)
   {
     p[i] = mesh_.point(_vhandles[i]);
     n[i] = mesh_.normal(_vhandles[i]);
+
+    if (flag_debug_isoex) {
+      using namespace std;
+      cerr << "      Point: " << p[i] << "  normal: " << n[i] << endl;
+    }
   }
-    
 
 
   // move barycenter of points into
@@ -329,6 +339,12 @@ find_feature(const VertexHandleVector& _vhandles)
   VertexHandle vh = mesh_.add_vertex(point);
   mesh_.status(vh).set_feature(true);
 
+
+  // *** DEBUG ***
+  if (flag_debug_isoex) {
+    using namespace std;
+    cerr << "+++ Adding vertex at : " << point << endl;
+  }
 
   return vh;
 }

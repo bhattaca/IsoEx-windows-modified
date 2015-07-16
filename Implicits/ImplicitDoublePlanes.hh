@@ -142,7 +142,10 @@ public:
     else {
       return false;
     }
-    
+
+    // *** DEBUG ***
+    if (t > 1.00001) { return false; }
+
     _point    = orig + dir*t;
     _distance = ((dir | _normal) < 0.0) ? dir.norm()*t : -dir.norm()*t;
 
