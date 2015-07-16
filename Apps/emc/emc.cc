@@ -139,9 +139,17 @@ int main(int argc, char** argv)
   
 
   // construct union and diff of 3 spheres
-  ImplicitSphere<VectorType>     s1(VectorType(-0.5,  0.0,  0.0), 1.0);
-  ImplicitSphere<VectorType>     s2(VectorType( 0.5,  0.5,  0.3), 0.7);
-  ImplicitSphere<VectorType>     s3(VectorType( 0.1,  0.0,  1.0), 0.5);
+ // ImplicitSphere<VectorType>     s1(VectorType(-0.5,  0.0,  0.0), 1.0);
+  //ImplicitSphere<VectorType>     s2(VectorType( 0.5,  0.5,  0.3), 0.7);
+  //ImplicitSphere<VectorType>     s3(VectorType( 0.1,  0.0,  1.0), 0.5);
+  // test 2
+  //ImplicitSphere<VectorType>     s1(VectorType(-0.5,  -0.1,  -0.2), 1.0);
+  //ImplicitSphere<VectorType>     s2(VectorType( 0.5,  0.6,  0.3), 0.7);
+  //ImplicitSphere<VectorType>     s3(VectorType( 0.1,  0.0,  1.0), 0.5);
+  // test 3
+  ImplicitSphere<VectorType>     s1(VectorType(-0.5,  -0.1,  -0.2), 1.0);
+  ImplicitSphere<VectorType>     s2(VectorType( 0.5,  0.6,  0.3), 0.7);
+  ImplicitSphere<VectorType>     s3(VectorType( 0.1,  0.3,  0.5), 0.6);
   CSG::Union<VectorType>         i1(s1, s2);
   CSG::Difference<VectorType>    i2(i1, s3);
 
