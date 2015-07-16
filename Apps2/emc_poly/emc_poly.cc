@@ -104,28 +104,41 @@ void usage(const char* _argv0)
 {
   std::cerr << "\n\nUsage: \n"
             << _argv0 << "  <-e | -m> <-sphere | -cube | -cyl | -ann> \n"
-            << "      <-a angle> <-r resolution> <-o filename> \n"
+            << "      <-n N> <-union1> <-union2> <-inter1> <-inter2> <-diff1> <-diff2> \n"
+            << "      <-width W> <-height H> <-flange_wh W H>"
             << "      <-center1 x y z> <-center2 x y z>\n"
             << "      <-radius1 r> <-radius2 r>\n"
             << "      <-dir x y z> <-side_dir x y z> \n"
+            << "      <-a angle> <-r resolution> <-o filename> <-h>\n"
             << "\n";
   
   std::cerr << "  -e      Use Extended Marching Cubes (default)\n"
             << "  -m      Use standard Marching Cubes\n"
             << "  -sphere Sphere\n"
-            << "  -cube   Cube\n"
+            << "  -cube   Cube (Default) \n"
             << "  -cyl    Cylinder\n"
             << "  -ann    Annulus\n"
+            << "  -n N    Set number of spheres/cubes to N (Default: 1)\n"
+            << "  -union1 Set first csg operation to union.\n"
+            << "  -union2 Set second csg operation to union.\n"
+            << "  -inter1 Set first csg operation to intersection.\n"
+            << "  -inter2 Set second csg operation to intersection.\n"
+            << "  -diff1  Set first csg operation to difference.\n"
+            << "  -diff2  Set second csg operation to difference.\n"
+            << "  -width W        Set cube or annulus width to W.\n"
+            << "  -height H       Set cylinder or annulus height to H.\n"
+            << "  -flange_wh W H  Set flange width to W and height to H\n"
+            << "  -center1 x y z  Set center of object 1 to (x,y,z)\n"
+            << "  -center2 x y z  Set center of object 2 to (x,y,z)\n"
+            << "  -radius1 r      Set radius of sphere 1 or cylinder or annulus to r\n"
+            << "  -radius2 r      Set radius of sphere 2 to r\n"
+            << "  -dir x y z      Set direction of cube facet to (x,y,z)\n"
+            << "  -side_dir x y z Set direction of second cube facet to (x,y,z)\n"
             << "  -a      Feature detection threshold\n"
             << "  -r      Grid resolution (default is 50)\n"
             << "  -o      Write result to filename (should be *.{off,obj,stl}), \n"
             << "          (Default: output.off)\n"
-            << "  -center1 x y z  Set center of object 1 to (x,y,z)\n"
-            << "  -center2 x y z  Set center of object 2 to (x,y,z)\n"
-            << "  -radius1 r      Set radius of sphere 1 to r\n"
-            << "  -radius2 r      Set radius of sphere 2 to r\n"
-            << "  -dir x y z      Set direction of cube facet to (x,y,z)\n"
-            << "  -side_dir x y z Set direction of second cube facet to (x,y,z)\n"
+            << "  -h      Print this help message\n"
             << "\n";
 
   exit(1);
@@ -227,11 +240,12 @@ int main(int argc, char** argv)
   float             radius3(0.7);
   float             cube_width(2.0);
   float             height(1.0);
+  float             width(1.0);
   float             annulus_width(0.5);
   float             flange_width(0.5);
   float             flange_height(0.5);
   bool              flag_flange(false);
-  bool              flag_tilt = true;
+  bool              flag_tilt = true;  
   
   
   // parse command line
@@ -261,6 +275,14 @@ int main(int argc, char** argv)
    else if ( s == "-union2" ) { csg_op2 = UNION; }
    else if ( s == "-inter2" ) { csg_op2 = INTERSECTION; }
    else if ( s == "-diff2" ) { csg_op2 = DIFFERENCE; }
+   else if ( s == "-width" ) {
+     string2val(argv[++iarg], width);
+     cube_width = width;
+     annulus_width = width;
+   }
+   else if ( s == "-height" ) {
+     string2val(argv[++iarg], height);
+   }
    else if ( s == "-center" || s == "-center1") {
      get_coord(iarg, argc, argv, center1);
      iarg += 3;
