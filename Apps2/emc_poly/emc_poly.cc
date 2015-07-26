@@ -427,8 +427,6 @@ int main(int argc, char** argv)
   else if (object == ANNULUS) {
 
     if (flag_flange) {
-
-      // *** NOT WORKING ***
       ImplicitAnnulus<VectorType> 
         annulus1(center1, dirA, radius1, annulus_width+2*flange_width, height);
       ImplicitAnnulus<VectorType> 
