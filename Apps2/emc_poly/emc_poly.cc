@@ -232,9 +232,10 @@ int main(int argc, char** argv)
   int               num_objects(1);
   VectorType        center1(0,0,0);
   VectorType        center2(0.5,0.5,0.5);
-  VectorType        center3(0.2, 0.2, 1);
+  VectorType        center3(0.2, 0.2, 1);  
   VectorType        dirA(1,0,0);
   VectorType        dirB(0,1,0);
+  VectorType        translation_coord(0.5, 0.5, 0.5);
   float             radius1(1.0);
   float             radius2(0.9);
   float             radius3(0.7);

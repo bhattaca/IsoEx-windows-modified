@@ -38,6 +38,7 @@ endif ()
 
 link_directories (
   ${OPENMESH_LIBRARY_DIR}
+  "../../lib"
 )
 
 # source code directories
