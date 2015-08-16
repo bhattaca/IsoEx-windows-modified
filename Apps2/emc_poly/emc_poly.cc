@@ -1,3 +1,7 @@
+// emc_poly.cc
+// Created from emc_poly.cc by R. Wenger, 2015.
+// Version 0.1.0
+
 /*===========================================================================*\
  *                                                                           *
  *                                IsoEx                                      *
@@ -31,10 +35,6 @@
 #include <IsoEx/Implicits/ImplicitAxisParallelCube.hh>
 #include <IsoEx/Implicits/ImplicitCube.hh>
 #include <IsoEx/Implicits/ImplicitCylinder.hh>
-
-// *** DEPRECATED
-#include <IsoEx/Implicits/ImplicitDoublePlanes.hh>
-
 
 #include <IsoEx/Implicits/ImplicitAnnulus.hh>
 #include <IsoEx/Implicits/csg.hh>
@@ -138,6 +138,7 @@ void usage(const char* _argv0)
             << "  -r      Grid resolution (default is 50)\n"
             << "  -o      Write result to filename (should be *.{off,obj,stl}), \n"
             << "          (Default: output.off)\n"
+            << "  -version  Print version.\n"
             << "  -h      Print this help message\n"
             << "\n";
 
@@ -247,7 +248,7 @@ int main(int argc, char** argv)
   float             flange_height(0.5);
   bool              flag_flange(false);
   bool              flag_tilt = true;  
-  
+  const std::string VERSION("v0.1.0");
   
   // parse command line
   int         c;
@@ -311,6 +312,9 @@ int main(int argc, char** argv)
      string2val(argv[++iarg], flange_height);
      flag_flange = true;
    }
+   else if ( s == "-version" ) {
+     std::cout << "Version: " << VERSION << std::endl;
+   }
    else { 
      std::cerr <<"Unrecognised. \n"<< argv[iarg] << std::endl;
      usage( argv[0]);
@@ -336,9 +340,6 @@ int main(int argc, char** argv)
   std::cout << "Output: " << filename << std::endl;
 
   
-  // double planes
-  ImplicitDoublePlanes<VectorType>   h1(center1, dirA, height);
-
   if (object == SPHERE) {
 
     if (num_objects == 1) {
